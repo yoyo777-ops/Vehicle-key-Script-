@@ -1,7 +1,10 @@
 local dict = "anim@mp_player_intmenu@key_fob@"
 local name = "fob_click_fp"
+-- lastpressedtime is 0 on start for players to check if the cooldown duration has passed or not
 local lastPressedTime = 0
+-- cooldown duration is 2500 milliseconds (2.5 seconds) to stop player spamming events
 local cooldownDuration = 2500
+-- function  to  flash lights on vehicle on lock and unclock
 local function vehiclelights(vehicle)
     CreateThread(function()
         SetVehicleLights(vehicle, 2)
@@ -13,12 +16,15 @@ local function vehiclelights(vehicle)
         SetVehicleLights(vehicle, 0)
     end)
 end
+
+-- registered a keybind to lock and unlock the vehicle
 local vehiclekey = lib.addKeybind({
     name = 'vehicle_lock_and_unlock',
     description = 'vehicle lock and unlock',
     defaultKey = 'L',
 
     onPressed = function()
+        -- save game time on current time to check last Pressed Time is less than cooldown duration or not
         local currentTime = GetGameTimer()
         if currentTime - lastPressedTime < cooldownDuration then
             lib.notify({
@@ -31,14 +37,15 @@ local vehiclekey = lib.addKeybind({
             return
         end
         lastPressedTime = currentTime
-
+        -- cache.ped is better than PlayerPedId() as it is more optimized and faster
         local playerPed = cache.ped
         local playerCoords = GetEntityCoords(playerPed)
         local vehicle = lib.getClosestVehicle(playerCoords, 3.0, true)
+        -- if vehicle does not exist then return to stop the rest of the code from executing
         if not vehicle then return end
-
+        
         lib.requestAnimDict(dict)
-
+        
         TaskPlayAnim(playerPed, dict, name, 8.0, 8.0, 800, 48, 1, false, false, false)
         local vehicleNetId = VehToNet(vehicle)
         lib.callback('changevehiclelockstate', 3000, function(success, message)
