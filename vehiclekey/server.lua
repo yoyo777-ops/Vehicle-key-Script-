@@ -1,12 +1,18 @@
+local charIdLogout = {}
+
 local function vehiclelights(vehicle)
-    SetVehicleLights(vehicle, 2)
-    Citizen.Wait(250)
-    SetVehicleLights(vehicle, 0)
-    Citizen.Wait(250)
-    SetVehicleLights(vehicle, 2)
-    Citizen.Wait(250)
-    SetVehicleLights(vehicle, 0)
-    Wait(600)
+    CreateThread(function()
+        for _ = 0, 1 do
+            SetVehicleLights(vehicle, 2)
+            Citizen.Wait(250)
+            SetVehicleLights(vehicle, 0)
+            Citizen.Wait(250)
+            SetVehicleLights(vehicle, 2)
+            Citizen.Wait(250)
+            SetVehicleLights(vehicle, 0)
+            Wait(600)
+        end
+    end)
 end
 
 
@@ -17,13 +23,17 @@ lib.callback.register('changevehiclelockstate', function(source, vehicleNetId)
         lockState = 2
         Entity(vehicle).state:set('lockState', lockState, true)
     end
+    local player = Ox.GetPlayer(source).charId
+    if charIdLogout[player] then
+        return
+    end
     local oxvehicle = Ox.GetVehicle(vehicle)
 
     if oxvehicle == nil then
-        return 3, 'vehicle does not exist'
+        return 3, 'This vehicle is not owned by anyone'
     end
     local vehicleowner = oxvehicle.owner
-    local player = Ox.GetPlayer(source).charId
+
     if lockState == 1 then
         if vehicleowner ~= player then
             return 3, 'You do not have the keys to this vehicle'
@@ -51,7 +61,11 @@ lib.callback.register('SetVehiclelockState', function(source, vehicleNetId)
     end
     local lockState = Entity(vehicle).state.lockState
     if lockState == nil then
-        Entity(vehicle).state:set('lockState', lockState, true)
+        Entity(vehicle).state:set('lockState', 2, true)
     end
     return true, 'Lock state set'
+end)
+
+AddEventHandler('ox:playerLogout', function(playerId, userId, charId)
+    charIdLogout[charId] = true
 end)
