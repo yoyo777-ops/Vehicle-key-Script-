@@ -2,7 +2,17 @@ local dict = "anim@mp_player_intmenu@key_fob@"
 local name = "fob_click_fp"
 local lastPressedTime = 0
 local cooldownDuration = 2500
-
+local function vehiclelights(vehicle)
+    CreateThread(function()
+        SetVehicleLights(vehicle, 2)
+        Citizen.Wait(250)
+        SetVehicleLights(vehicle, 0)
+        Citizen.Wait(250)
+        SetVehicleLights(vehicle, 2)
+        Citizen.Wait(250)
+        SetVehicleLights(vehicle, 0)
+    end)
+end
 local vehiclekey = lib.addKeybind({
     name = 'vehicle_lock_and_unlock',
     description = 'vehicle lock and unlock',
@@ -38,7 +48,7 @@ local vehiclekey = lib.addKeybind({
                     description = message,
                     type = 'success'
                 })
-
+                vehiclelights(vehicle)
                 PlayVehicleDoorCloseSound(vehicle, 1)
             elseif success == 2 then
                 lib.notify({
@@ -46,6 +56,7 @@ local vehiclekey = lib.addKeybind({
                     description = message,
                     type = 'success'
                 })
+                vehiclelights(vehicle)
                 PlayVehicleDoorOpenSound(vehicle, 1)
             elseif success == 3 then
                 lib.notify({
@@ -60,6 +71,7 @@ local vehiclekey = lib.addKeybind({
 })
 
 CreateThread(function()
+    local wasBlocking = false
     while true do
         local vehicle = GetVehiclePedIsTryingToEnter(cache.ped)
         if DoesEntityExist(vehicle) then
@@ -80,6 +92,26 @@ CreateThread(function()
                 SetVehicleDoorsLocked(vehicle, 2)
             end
         end
-        Wait(250)
+
+        local ped = PlayerPedId()
+
+        if IsPedInAnyVehicle(ped, false) then
+            local vehicle = GetVehiclePedIsIn(ped, false)
+            local lockState = Entity(vehicle).state.lockState
+
+            if lockState == 2 then
+                DisableControlAction(0, 75, true)
+                DisableControlAction(27, 75, true)
+
+                if not wasBlocking then
+                    wasBlocking = true
+                end
+            else
+                wasBlocking = false
+            end
+        else
+            wasBlocking = false
+        end
+        Wait(0)
     end
 end)
