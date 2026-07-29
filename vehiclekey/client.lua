@@ -1,85 +1,67 @@
-local dict = "anim@mp_player_intmenu@key_fob@"
-local name = "fob_click_fp"
-local lastPressedTime = 0
-local cooldownDuration = 2500
+local charIdLogout = {}
 
-local vehiclekey = lib.addKeybind({
-    name = 'vehicle_lock_and_unlock',
-    description = 'vehicle lock and unlock',
-    defaultKey = 'L',
-
-    onPressed = function()
-        local currentTime = GetGameTimer()
-        if currentTime - lastPressedTime < cooldownDuration then
-            lib.notify({
-                title = 'Vehicle Key',
-                description = 'Please wait before using the key again.',
-                type = 'error'
-            })
+local function vehiclelights(vehicle)
+    SetVehicleLights(vehicle, 2)
+    Citizen.Wait(250)
+    SetVehicleLights(vehicle, 0)
+    Citizen.Wait(250)
+    SetVehicleLights(vehicle, 2)
+    Citizen.Wait(250)
+    SetVehicleLights(vehicle, 0)
+    Wait(600)
+end
 
 
-            return
-        end
-        lastPressedTime = currentTime
-
-        local playerPed = cache.ped
-        local playerCoords = GetEntityCoords(playerPed)
-        local vehicle = lib.getClosestVehicle(playerCoords, 3.0, true)
-        if not vehicle then return end
-
-        lib.requestAnimDict(dict)
-
-        TaskPlayAnim(playerPed, dict, name, 8.0, 8.0, 800, 48, 1, false, false, false)
-        local vehicleNetId = VehToNet(vehicle)
-        lib.callback('changevehiclelockstate', 3000, function(success, message)
-            if success == 1 then
-                lib.notify({
-                    title = 'Vehicle Key',
-                    description = message,
-                    type = 'success'
-                })
-
-                PlayVehicleDoorCloseSound(vehicle, 1)
-            elseif success == 2 then
-                lib.notify({
-                    title = 'Vehicle Key',
-                    description = message,
-                    type = 'success'
-                })
-                PlayVehicleDoorOpenSound(vehicle, 1)
-            elseif success == 3 then
-                lib.notify({
-                    title = 'Vehicle Key',
-                    description = message,
-                    type = 'error'
-                })
-            end
-        end, vehicleNetId)
+lib.callback.register('changevehiclelockstate', function(source, vehicleNetId)
+    local vehicle = NetworkGetEntityFromNetworkId(vehicleNetId)
+    local lockState = Entity(vehicle).state.lockState
+    if lockState == nil then
+        lockState = 2
+        Entity(vehicle).state:set('lockState', lockState, true)
     end
-
-})
-
-CreateThread(function()
-    while true do
-        local vehicle = GetVehiclePedIsTryingToEnter(cache.ped)
-        if DoesEntityExist(vehicle) then
-            local vehicleNetId = VehToNet(vehicle)
-            local lockState = Entity(vehicle).state.lockState
-            if lockState == nil then
-                SetVehicleDoorsLocked(vehicle, 2)
-                lib.callback('SetVehiclelockState',false, function(success, message)
-                    if success then
-                        print(message)
-                    else
-                        print(message)
-                    end
-                end, vehicleNetId)
-            elseif lockState == 1 then
-                SetVehicleDoorsLocked(vehicle, 1)
-            elseif lockState == 2 then
-                SetVehicleDoorsLocked(vehicle, 2)
-            end
-        end
-        Wait(250)
+    local player = Ox.GetPlayer(source).charId
+    if charIdLogout[player] then
+        return 3, 'You have logged out'
     end
+    local oxvehicle = Ox.GetVehicle(vehicle)
+    
+    if oxvehicle == nil then
+        return 3,  'This vehicle is not owned by anyone'
+    end
+    local vehicleowner = oxvehicle.owner
+
+    if lockState == 1 then
+        if vehicleowner ~= player then
+            return 3, 'You do not have the keys to this vehicle'
+        end
+        vehiclelights(vehicle)
+        Entity(vehicle).state:set('lockState', 2, true)
+        return 1, 'Vehicle locked'
+    elseif lockState == 2 then
+        if vehicleowner ~= player then
+            return 3, 'You do not have the keys to this vehicle'
+        end
+        vehiclelights(vehicle)
+        Entity(vehicle).state:set('lockState', 1, true)
+
+        return 2, 'Vehicle unlocked'
+    else
+        return 3, 'Vehicle locked'
+    end
+end)
+
+lib.callback.register('SetVehiclelockState', function(source, vehicleNetId)
+    local vehicle = NetworkGetEntityFromNetworkId(vehicleNetId)
+    if not DoesEntityExist(vehicle) then
+        return false, 'Vehicle does not exist'
+    end
+    local lockState = Entity(vehicle).state.lockState
+    if lockState == nil then
+        Entity(vehicle).state:set('lockState', 2, true)
+    end
+    return true, 'Lock state set'
+end)
+
+AddEventHandler('ox:playerLogout', function(playerId, userId, charId)
+    charIdLogout[charId] = true
 end)
